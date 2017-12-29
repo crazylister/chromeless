@@ -2,6 +2,29 @@ import 'source-map-support/register'
 import { LocalChrome, Queue, ChromelessOptions } from 'chromeless'
 import { connect as mqtt, MqttClient } from 'mqtt'
 import { createPresignedURL, debug } from './utils'
+import {createServer} from 'http';
+
+function waitForChromeToTerminate() {
+    let retry = 5;
+    return new Promise((resolve, reject) => {
+        const server = createServer();
+        server.listen(9222);
+        server.once('listening', () => {
+            server.close(() => resolve());
+        });
+        server.on('error', () => {
+            debug('Port is busy retrying')
+            setTimeout(() => {
+                if (retry) {
+                    retry--;
+                    server.listen(9222);
+                } else {
+                  reject('Chrome is still running');
+                }
+            }, 500);
+        });
+    })
+}
 
 export default async (
   { channelId, options },
@@ -56,7 +79,7 @@ export default async (
 
           await chrome.close()
           await chromeInstance.kill()
-
+          await waitForChromeToTerminate();
           callback()
         })
       })
